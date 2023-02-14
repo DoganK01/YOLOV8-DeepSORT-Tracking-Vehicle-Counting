@@ -5,7 +5,7 @@ import torch
 import argparse
 import time
 from pathlib import Path
-
+import math
 import cv2
 import torch
 import torch.backends.cudnn as cudnn
@@ -32,6 +32,18 @@ object_counter1 = {}
 
 line = [(100, 500), (1050, 500)]
 
+speed_line_queue = {}
+
+def estimatespeed(location1, location2):
+    d_pixel = math.sqrt(math.pow(location2[0] - location1[0], 2) + mat.pow(location2[1] - location1[1], 2))
+    # pixels per meter:
+    ppm = 8
+    d_meters = d_pixel/ppm
+    time_constant = 15*3.6
+    
+    speed = d_meters*time_constant
+    return int(speed)
+    
 
 def init_tracker():
     global deepsort
@@ -200,6 +212,8 @@ def draw_boxes(img, bbox, names, object_id, identities=None, offset=(0, 0)):
         data_deque[id].appendleft(center)
         if len(data_deque[id]) >= 2:
             direction = get_direction(data_deque[id][0], data_deque[id][1])
+            object_speed = estimatespeed(data_deque[id][1], data_deque[id][0])
+            speed_line_queue[id].append(object_speed)
             if intersect(data_deque[id][0], data_deque[id][1], line[0], line[1]):
                 cv2.line(img, line[0], line[1], (255, 255, 255), 3)
                 if "South" in direction:
@@ -212,6 +226,8 @@ def draw_boxes(img, bbox, names, object_id, identities=None, offset=(0, 0)):
                         object_counter1[obj_name] = 1
                     else:
                         object_counter1[obj_name] += 1
+        try:
+            label = label + "" + str(sum(speed_line_queue[id])//len(speed_line_queue[id])) + "km/h"
         UI_box(box, img, label=label, color=color, line_thickness=2)
         # draw trail
         for i in range(1, len(data_deque[id])):
